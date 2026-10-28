@@ -1,0 +1,112 @@
+/* ============================================================================
+   msk-ui v1.0.0 — design tokens (shared by all msk web apps)
+   Source of truth: claude-toolkit/plugins/msk-web/skills/msk-ui/assets/
+   Apps get a COPY in app/static/ui/ (scripts/sync.sh). Never edit the copy.
+
+   Dark = the MyFITContainer look (unchanged values). Light = its counterpart.
+   The theme follows the system (prefers-color-scheme); no toggle.
+   ============================================================================ */
+:root {
+  color-scheme: dark;
+  /* surfaces */
+  --bg:#0a0e13;
+  --surface:#121823;         /* cards, header panel */
+  --surface-2:#0e141d;       /* table / input fields */
+  --surface-3:#19222e;       /* elevated: popups, toasts, sheets */
+  --thead:#141c27;
+  --hover:#1a2433;           /* table row hover */
+  --hover-soft:rgba(255,255,255,.05);   /* ghost buttons, nav links */
+  --zebra:rgba(255,255,255,.022);
+  /* text */
+  --fg:#e9eff7;
+  --muted:#8b98ab;
+  --faint:#5b6675;
+  /* lines */
+  --line:rgba(255,255,255,.09);
+  --line-2:rgba(255,255,255,.055);
+  --line-strong:rgba(255,255,255,.16);  /* ghost button border */
+  --line-hover:rgba(255,255,255,.2);    /* input hover border */
+  /* accent + states */
+  --accent:#4f8cff;
+  --accent-2:#7b6cff;
+  --accent-ink:#ffffff;
+  --accent-weak:rgba(79,140,255,.15);
+  --accent-line:rgba(79,140,255,.28);
+  --accent-glow:rgba(79,140,255,.35);
+  --ok:#35c08a;
+  --ok-weak:rgba(53,192,138,.14);
+  --warn:#e7b53d;
+  --warn-weak:rgba(231,181,61,.14);
+  --danger:#ff5d57;
+  --danger-weak:rgba(255,93,87,.14);
+  /* buttons */
+  --btn-top:#5b95ff; --btn-bottom:#3f78ee;
+  --btn-danger-top:#ff6a64; --btn-danger-bottom:#ec463f;
+  --btn-shadow:0 1px 2px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.12);
+  /* chrome */
+  --header-bg:rgba(12,17,24,.72);
+  --tabbar-bg:rgba(12,17,24,.88);
+  --backdrop:rgba(0,0,0,.45);
+  --scroll-thumb:rgba(255,255,255,.14);
+  --scroll-thumb-hover:rgba(255,255,255,.26);
+  --glow-1:rgba(79,140,255,.10);        /* page background gradients */
+  --glow-2:rgba(123,108,255,.06);
+  /* spacing scale */
+  --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem;
+  /* shape + depth */
+  --r:14px; --r-sm:9px; --r-xs:6px; --r-2xs:4px;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px -18px rgba(0,0,0,.7);
+  --shadow-md:0 10px 28px rgba(0,0,0,.5);
+  --shadow-lg:0 20px 60px rgba(0,0,0,.5);
+  --ring:0 0 0 3px var(--accent-weak);
+  --header-h:3.5rem;
+  --font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg:#f3f5f9;
+    --surface:#ffffff;
+    --surface-2:#f7f9fc;
+    --surface-3:#ffffff;
+    --thead:#eef2f7;
+    --hover:#eaf1fd;
+    --hover-soft:rgba(15,23,42,.05);
+    --zebra:rgba(15,23,42,.022);
+    --fg:#101826;
+    --muted:#5a6678;
+    --faint:#8a95a6;
+    --line:rgba(15,23,42,.11);
+    --line-2:rgba(15,23,42,.065);
+    --line-strong:rgba(15,23,42,.18);
+    --line-hover:rgba(15,23,42,.26);
+    --accent:#2f6fe4;          /* darker than dark mode: >= 4.5:1 on white */
+    --accent-2:#6a5ae0;
+    --accent-weak:rgba(47,111,228,.10);
+    --accent-line:rgba(47,111,228,.30);
+    --accent-glow:rgba(47,111,228,.25);
+    --ok:#17895c;
+    --ok-weak:rgba(23,137,92,.12);
+    --warn:#9a6b00;
+    --warn-weak:rgba(214,158,20,.16);
+    --danger:#d33a34;
+    --danger-weak:rgba(211,58,52,.10);
+    --btn-top:#4a86f5; --btn-bottom:#2f6fe4;
+    --btn-danger-top:#ee5a54; --btn-danger-bottom:#d33a34;
+    --btn-shadow:0 1px 2px rgba(15,23,42,.18), inset 0 1px 0 rgba(255,255,255,.2);
+    --header-bg:rgba(255,255,255,.78);
+    --tabbar-bg:rgba(255,255,255,.9);
+    --backdrop:rgba(15,23,42,.32);
+    --scroll-thumb:rgba(15,23,42,.18);
+    --scroll-thumb-hover:rgba(15,23,42,.3);
+    --glow-1:rgba(47,111,228,.07);
+    --glow-2:rgba(106,90,224,.05);
+    --shadow-sm:0 1px 2px rgba(15,23,42,.06), 0 0 0 .5px rgba(15,23,42,.04);
+    --shadow:0 1px 2px rgba(15,23,42,.06), 0 16px 40px -18px rgba(15,23,42,.18);
+    --shadow-md:0 10px 28px rgba(15,23,42,.14);
+    --shadow-lg:0 20px 60px rgba(15,23,42,.18);
+  }
+}

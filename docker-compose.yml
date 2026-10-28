@@ -1,0 +1,16 @@
+# The hosted server (`garmin-mcp serve`) in a container. Settings come from
+# .env (see .env.example and docs/hosted.md). There is no host port: the
+# container sits behind your reverse proxy and next to MyAuth. Put both in one
+# Docker network with a docker-compose.override.yml (example in docs/hosted.md).
+services:
+  mcp-garmin:
+    build: .
+    image: mcp-garmin:latest
+    container_name: mcp-garmin
+    restart: unless-stopped
+    env_file: ./.env
+    volumes:
+      - mcp_garmin_data:/data
+
+volumes:
+  mcp_garmin_data:

@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push supersedes an older run - Actions minutes on private repos are
+# a quota, not free.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+
+      - name: Dependencies (exactly uv.lock, as in the image)
+        run: uv sync --frozen --extra dev
+
+      - name: ruff
+        # Same narrow selection as the msk-python hook: E9,F are the rules
+        # that mean a defect.
+        run: |
+          uvx ruff check --select E9,F --output-format=github garmin_mcp tests
+          echo "ruff checked $(find garmin_mcp tests -name '*.py' | wc -l) files"
+
+      - name: pytest
+        run: |
+          uv run pytest -q 2>&1 | tee pytest.log
+          grep -E "[0-9]+ passed" pytest.log || (echo "no test run found in log" && exit 1)
+
+  docker:
+    name: Image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Build only. Deployment stays manual.
+      - run: docker build -t mcp-garmin:ci .
+      - name: Smoke-check image
+        run: |
+          docker run --rm mcp-garmin:ci garmin-mcp --help
+          docker run --rm mcp-garmin:ci python -c "import garmin_mcp.web as w; assert (w.STATIC_DIR / 'ui/tokens.css').is_file(); print('static files in the image')"
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

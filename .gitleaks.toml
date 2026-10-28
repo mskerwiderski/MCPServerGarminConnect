@@ -1,0 +1,18 @@
+title = "mcp-garmin"
+
+[extend]
+useDefault = true
+
+# Garmin Connect Mobile's own OAuth1 consumer key and secret. They are not a
+# secret of this project or of any user: every community Garmin client ships
+# the same two constants (garth, python-garminconnect), because
+# Garmin's mobile app carries them in its binary. Without them no OAuth1 ->
+# OAuth2 exchange is possible at all. Allowlisted by exact value, so any OTHER
+# high-entropy string in that file still trips the scan.
+[allowlist]
+description = "Garmin Connect Mobile public OAuth1 consumer credentials"
+paths = ['''garmin_mcp/garmin_login/signin\.py''']
+regexes = [
+  '''fc3e99d2-118c-44b8-8ae3-03370dde24c0''',
+  '''E08WAR897WEy2knn7aFBrvegVAf0AFdWBBF''',
+]

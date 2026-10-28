@@ -1,0 +1,16 @@
+/* Garmin MCP - app-specific styles on top of msk-ui (static/ui/, a copy of
+   the author's design system). Tokens only: no colour values here. */
+
+/* the connector address, ready to copy */
+.connector-url { width:100%; font-family:var(--mono); font-size:.9rem; resize:none; }
+
+/* Garmin connection state on the account page */
+.status-line { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin:.2rem 0 .9rem; }
+
+/* "sign in as" (MyAuth): clearly visible above every page, as in MyAuth.
+   It takes the sticky top; the header scrolls away under it. */
+.imp-banner { position:sticky; top:0; z-index:101; display:flex; align-items:center;
+  justify-content:center; gap:.75rem; flex-wrap:wrap; padding:.55rem 1rem;
+  background:linear-gradient(var(--warn-weak), var(--warn-weak)), var(--bg);
+  border-bottom:2px solid var(--warn); color:var(--fg); font-weight:600; }
+.imp-banner + header { position:static; }

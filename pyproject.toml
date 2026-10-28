@@ -1,0 +1,43 @@
+[project]
+name = "garmin-mcp"
+version = "0.6.0"
+description = "Read-only MCP server for Garmin Connect: activities, health data and the original FIT files"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+readme = "README.md"
+dependencies = [
+    # Upper bounds are deliberate. The server image is rebuilt on every deploy,
+    # so an open constraint means the next deploy installs whatever is newest.
+    # mcp 2.0 already removed mcp.server.fastmcp once (that is why a sibling
+    # project is pinned to mcp<2); this one uses MCPServer from
+    # mcp 2.x and should not silently ride into a 3.0.
+    "mcp>=2.1,<3",
+    "httpx>=0.27",
+    "fitdecode>=0.10",
+    "starlette>=0.40",
+    "uvicorn[standard]>=0.32",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "fit-tool>=0.9.15",     # synthesises FIT files for the tests
+]
+
+[project.scripts]
+garmin-mcp = "garmin_mcp.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["garmin_mcp*"]
+
+[tool.setuptools.package-data]
+# msk-ui (static/ui/ is a vendored copy of the author's design system),
+# app.css and the logo - served by the HTTP mode.
+garmin_mcp = ["static/*", "static/ui/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
