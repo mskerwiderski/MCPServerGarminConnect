@@ -2,7 +2,8 @@
 the MyCommons building block `mcp_oauth`.
 
 Copied into its host package by MyCommons/sync.sh (`<package>/mcp_oauth/`) and
-used by Garmin MCP, Libre MCP and MyDocContainer's MCP. Never edit a copy.
+used by Garmin MCP, Libre MCP, MyDocContainer's MCP and MyFITContainer's MCP.
+Never edit a copy.
 DCR, PKCE S256, refresh grant and the two discovery documents:
 
   - clients and tokens live in SQLite,
