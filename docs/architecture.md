@@ -22,7 +22,8 @@ garmin_mcp/
   db.py         SQLite schema
   oauth.py      OAuth 2.1 authorization server: thin layer over mcp_oauth/ (vendored
                 building block), keeps the consent and error page
-  web.py        Account page, the msk-ui page shell
+  web.py        Account page, the msk-ui page shell, signed_in (on access.web;
+                addresses come from mcp_oauth.addresses)
   static/       ui/ (msk-ui, vendored), app.css, logo
   server.py     HTTP entry point
   cli.py        garmin-mcp serve (HTTP, MyAuth) / login, status, logout, stdio (standalone)
@@ -219,8 +220,11 @@ next sync; changes go upstream. `tests/test_access_copy.py` compares the
 copies with MyCommons when it is cloned next to this repo, and is skipped
 otherwise (in CI, and for everyone else).
 
-- `access/` - MyAuth client: sessions, access checks, Garmin access tokens.
-- `mcp_oauth/` - the shared OAuth 2.1 authorization server (see OAuth above).
+- `access/` - MyAuth client: sessions, access checks, Garmin access tokens;
+  `access.web` is the browser sign-in core and the cross-site check that
+  `web.signed_in` uses.
+- `mcp_oauth/` - the shared OAuth 2.1 authorization server (see OAuth above)
+  and its addresses (`mcp_oauth.addresses`: PUBLIC_URL, MCP_URL, UI_URL).
 - `garmin_login/` - Garmin sign-in and token renewal (standalone mode).
 - `garmin_api/` - the Garmin Connect client, shared with a sibling project
   (activities, search, challenges, records, scores, ranges, weather, time in

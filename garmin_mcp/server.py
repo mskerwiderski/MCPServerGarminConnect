@@ -26,6 +26,7 @@ from starlette.types import Receive, Scope, Send
 
 from . import db, oauth, session as sessions, tools, users, web
 from .access import myauth
+from .mcp_oauth import addresses
 
 # httpx logs every request URL at INFO (the MCP SDK switches logging on).
 # Internal MyAuth calls and Garmin URLs have no business in the log.
@@ -74,7 +75,7 @@ async def _send_json(send: Send, status: int, payload: dict) -> None:
 
 async def _send_unauthorized(scope: Scope, send: Send) -> None:
     body = json.dumps({"error": "unauthorized"}).encode()
-    meta = web.well_known(web.mcp_url(Request(scope)), "oauth-protected-resource")
+    meta = addresses.well_known(addresses.mcp_url(Request(scope)), "oauth-protected-resource")
     www_auth = f'Bearer realm="mcp", resource_metadata="{meta}"'
     await send({"type": "http.response.start", "status": 401, "headers": [
         (b"www-authenticate", www_auth.encode("latin-1")),

@@ -13,13 +13,14 @@ import hashlib
 import html as html_lib
 import os
 from pathlib import Path
-from urllib.parse import quote, urlparse
 
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from . import __version__, users
 from .access import myauth
+from .access import web as access_web
+from .mcp_oauth import addresses
 
 STATIC_DIR = Path(__file__).parent / "static"
 _asset_cache: dict[str, str] = {}
@@ -64,60 +65,24 @@ def asset(rel: str) -> str:
 
 # --- addresses ---------------------------------------------------------------
 #
-# A hosted server can have two faces (docs/hosted.md):
-#   PUBLIC_URL  e.g. https://mcp.example.com/garmin
-#               issuer and OAuth endpoints, public for the AI clients
-#   MCP_URL     the connector address; often the same URL, mapped to /mcp
-#   UI_URL      e.g. https://home.example.internal:1030
-#               account and consent pages, may stay private
-# Unset, everything collapses onto the origin of the request (one host).
-
-
-def _env_url(name: str) -> str:
-    return os.environ.get(name, "").rstrip("/")
-
-
-def request_origin(request: Request) -> str:
-    """The origin this browser used - a private host name, a LAN IP, or the
-    single host of a simple setup."""
-    proto = request.headers.get("x-forwarded-proto", "https")
-    return f"{proto}://{request.headers.get('host', 'localhost')}"
-
-
-def public_base(request: Request) -> str:
-    return _env_url("PUBLIC_URL") or request_origin(request)
-
-
-def mcp_url(request: Request) -> str:
-    return _env_url("MCP_URL") or f"{public_base(request)}/mcp"
-
-
-def ui_base(request: Request) -> str:
-    return _env_url("UI_URL") or public_base(request)
-
-
-def well_known(url: str, name: str) -> str:
-    """RFC 8414 / RFC 9728: /.well-known/<name> goes between host and path,
-    so every app behind one public host keeps its own metadata."""
-    p = urlparse(url)
-    return f"{p.scheme}://{p.netloc}/.well-known/{name}{p.path.rstrip('/')}"
+# The server's addresses (issuer, connector, consent page) are the MyCommons
+# block's: mcp_oauth.addresses (env PUBLIC_URL / MCP_URL / UI_URL, docs/hosted.md).
+# The sign-in core and the cross-site check are access.web's.
 
 
 def page(request: Request, title: str, body: str, status: int = 200,
          user: dict | None = None) -> HTMLResponse:
     nav = tabbar = banner = ""
     if user:
-        base = request_origin(request)
-        account = esc(myauth.public_url(base, "/"))
-        logout = esc(myauth.public_url(base, "/logout?next=/login"))
-        name = esc(user.get("display_name") or user.get("username") or "")
-        imp = user.get("impersonated_by")
-        if imp:
+        acc = access_web.account(request, user)
+        account = esc(acc["account_url"])
+        logout = esc(acc["logout_url"])
+        name = esc(acc["name"] or "")
+        if acc["impersonated_by"]:
             # an admin signed in as this user ("sign in as" in MyAuth) - a consent
             # given now would be the user's, so it shows on every page
-            admin = esc(imp.get("display_name") or imp.get("username") or "")
-            stop = esc(myauth.public_url(base, "/impersonate/stop?next="
-                                         + quote(_current_url(request), safe="")))
+            admin = esc(acc["impersonated_by"])
+            stop = esc(acc["stop_url"])
             banner = (f'<div class="imp-banner" role="status"><span>You are signed in as '
                       f'{name} - on behalf of {admin}.</span>'
                       f'<a class="btn btn-sm" href="{stop}">Sign out as {name}</a></div>\n')
@@ -165,44 +130,33 @@ def _footer_note() -> str:
 # --- who is asking -----------------------------------------------------------
 
 
-def _current_url(request: Request) -> str:
-    query = f"?{request.url.query}" if request.url.query else ""
-    return f"{request_origin(request)}{request.url.path}{query}"
-
-
-def _cross_site(request: Request) -> bool:
-    """Apps behind one MyAuth usually share a host name, and cookies do not separate
-    ports - a form on another app's page would arrive here with the MyAuth
-    cookie. The Origin header is what tells them apart."""
-    origin = request.headers.get("origin")
-    return bool(origin) and origin.rstrip("/") != request_origin(request)
-
-
 async def signed_in(request: Request) -> tuple[dict | None, Response | None]:
     """The MyAuth user behind this browser, with their local row brought up to
     date - or the response to send instead: MyAuth's sign-in page, "no access",
-    or "sign-in unavailable"."""
-    if request.method == "POST" and _cross_site(request):
+    or "sign-in unavailable". Apps behind one MyAuth share a host name and
+    cookies do not separate ports, so a POST from another site is refused
+    (access.web.cross_site)."""
+    if request.method == "POST" and access_web.cross_site(request):
         return None, page(request, "Refused", "<h1>Refused</h1><p>This form was sent "
                           "from another site.</p>", 403)
-    try:
-        status, body = await myauth.session_of(request.cookies.get(myauth.SSO_COOKIE))
-    except myauth.Unavailable:
-        return None, page(request, "Sign-in unavailable",
-                          "<h1>Sign-in unavailable</h1><p>MyAuth, the sign-in service, "
-                          "is not answering. Please try again in a moment.</p>", 503)
-    if status == 200 and "uid" in body:
+    gate = await access_web.check(request)
+    if gate.outcome == access_web.OK and "uid" in gate.user:
+        body = gate.user
         users.ensure_user(int(body["uid"]), str(body.get("username") or ""),
                           str(body.get("display_name") or ""))
         return body, None
-    if status == 403:
-        account = esc(myauth.public_url(request_origin(request), "/"))
+    if gate.outcome == access_web.UNAVAILABLE:
+        return None, page(request, "Sign-in unavailable",
+                          "<h1>Sign-in unavailable</h1><p>MyAuth, the sign-in service, "
+                          "is not answering. Please try again in a moment.</p>", 503)
+    if gate.outcome == access_web.NO_ACCESS:
+        account = esc(access_web.myauth_page(request, "/"))
         return None, page(request, "No access",
                           "<h1>No access</h1><p>Your MyAuth account is not enabled for "
                           "Garmin MCP. An administrator can change that in "
                           f'<a href="{account}">MyAuth</a>.</p>', 403)
-    target = myauth.login_url(request_origin(request), _current_url(request),
-                              password_change=body.get("detail") == "password_change_required")
+    target = access_web.login_target(
+        request, password_change=gate.outcome == access_web.CHANGE_PASSWORD)
     if request.method in ("GET", "HEAD"):
         return None, RedirectResponse(target, status_code=303)
     return None, page(request, "Signed out", "<h1>Signed out</h1><p>Your MyAuth session "
@@ -228,7 +182,7 @@ async def get_account(request: Request) -> Response:
     user, err = await signed_in(request)
     if err is not None:
         return err
-    myauth_page = esc(myauth.public_url(request_origin(request), "/connections#garmin"))
+    myauth_page = esc(access_web.myauth_page(request, "/connections#garmin"))
     try:
         token = await myauth.garmin_token(int(user["uid"]))
     except (myauth.Unavailable, myauth.GarminRefused) as exc:
@@ -250,7 +204,7 @@ async def get_account(request: Request) -> Response:
                   'your Garmin account. That happens once, in MyAuth - every app that '
                   f'reads Garmin uses the same connection.</p>'
                   f'<a class="btn" href="{myauth_page}">Connect Garmin in MyAuth</a>')
-    url = mcp_url(request)
+    url = addresses.mcp_url(request)
     return page(request, "Account", f"""<h1>Garmin MCP</h1>
 <div class="card"><h2 class="first">Garmin Connect</h2>{garmin}</div>
 <div class="card"><h2 class="first">Use it in Claude, ChatGPT or Mistral</h2>

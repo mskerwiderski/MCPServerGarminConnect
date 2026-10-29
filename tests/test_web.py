@@ -111,3 +111,15 @@ def test_banner_when_an_admin_is_signed_in_as_the_user(anja, user_id, fake_myaut
     del fake_myauth.users[user_id]["impersonated_by"]
     myauth.clear_cache()
     assert "imp-banner" not in anja.get("/account").text
+
+
+def test_an_unexpected_myauth_answer_fails_closed(client, user_id, monkeypatch):
+    """Since access.web: anything but 200/401/403 from MyAuth is "sign-in
+    unavailable", not a redirect to the sign-in page."""
+    async def broken(cookie):
+        return 500, {}
+    monkeypatch.setattr(myauth, "_fetch_session", broken)
+    myauth.clear_cache()
+    client.cookies.set("sso_session", "anja-cookie")
+    r = client.get("/account", follow_redirects=False)
+    assert r.status_code == 503 and "Sign-in unavailable" in r.text
