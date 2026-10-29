@@ -33,6 +33,14 @@ at least ten more minutes). MyAuth unreachable -> `Unavailable`, and the
 caller fails closed. `_fetch_session`, `_fetch_access`, `_fetch_garmin`,
 `_fetch_libre` and `_fetch_connections` are the mock points of the tests.
 
+Any other internal MyAuth endpoint (an app's notifications, mail, bank or
+glucose calls) goes through `call` (async) or `call_sync`: MyAuth's address,
+the app's key as bearer, `app=<key>` (and `uid` when given) as query
+parameters, a timeout, the JSON body as a dict, and `Unavailable` when MyAuth
+does not answer. The domain functions stay in the app; `_request` and
+`_request_sync` are the mock points for tests that fake MyAuth at the HTTP
+level.
+
 The sign-in page itself is MyAuth's, on the same host at MYAUTH_PUBLIC_PORT.
 Cookies do not separate ports, so a MyAuth sign-in is valid there as well.
 
@@ -162,16 +170,59 @@ async def _fetch_access(uid: int) -> tuple[int, dict]:
     return r.status_code, _body(r)
 
 
-async def _fetch_app(path: str, uid: int, **params) -> tuple[int, dict]:
-    """GET an internal MyAuth endpoint with this app's key as bearer."""
+def _query(uid: int | None, params: dict | None) -> dict:
+    return {"app": app_key(), **({"uid": uid} if uid is not None else {}), **(params or {})}
+
+
+def _auth_header() -> dict:
+    return {"authorization": f"Bearer {app_secret()}"}
+
+
+async def _request(method: str, url: str, params: dict, data: dict | None,
+                   files: list | None, timeout: float) -> tuple[int, dict]:
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.get(f"{auth_url()}{path}",
-                                 params={"uid": uid, "app": app_key(), **params},
-                                 headers={"authorization": f"Bearer {app_secret()}"})
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.request(method, url, params=params, data=data, files=files,
+                                     headers=_auth_header())
     except httpx.HTTPError as exc:
         raise Unavailable("MyAuth is not reachable") from exc
     return r.status_code, _body(r)
+
+
+def _request_sync(method: str, url: str, params: dict, data: dict | None,
+                  files: list | None, timeout: float) -> tuple[int, dict]:
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            r = client.request(method, url, params=params, data=data, files=files,
+                               headers=_auth_header())
+    except httpx.HTTPError as exc:
+        raise Unavailable("MyAuth is not reachable") from exc
+    return r.status_code, _body(r)
+
+
+async def call(method: str, path: str, *, uid: int | None = None, params: dict | None = None,
+               data: dict | None = None, files: list | None = None,
+               timeout: float = 10) -> tuple[int, dict]:
+    """(status, JSON body as dict) of an internal MyAuth endpoint, called with
+    this app's key as bearer and `app=<key>` (plus `uid` when given) in the
+    query. `data`/`files` go as a form (multipart with files, httpx style).
+    Raises `Unavailable` when MyAuth does not answer; every HTTP status is
+    returned - mapping it to the app's messages is the caller's job."""
+    return await _request(method, f"{auth_url()}{path}", _query(uid, params), data, files,
+                          timeout)
+
+
+def call_sync(method: str, path: str, *, uid: int | None = None, params: dict | None = None,
+              data: dict | None = None, files: list | None = None,
+              timeout: float = 10) -> tuple[int, dict]:
+    """`call` for synchronous code (e.g. stores asked from sync paths)."""
+    return _request_sync(method, f"{auth_url()}{path}", _query(uid, params), data, files,
+                         timeout)
+
+
+async def _fetch_app(path: str, uid: int, **params) -> tuple[int, dict]:
+    """GET an internal MyAuth endpoint with this app's key as bearer."""
+    return await call("GET", path, uid=uid, params=params, timeout=30)
 
 
 async def _fetch_garmin(uid: int) -> tuple[int, dict]:

@@ -47,6 +47,19 @@ def current_url(request) -> str:
     return f"https://{request.headers.get('host', request.url.netloc)}{request.url.path}{query}"
 
 
+def cross_site(request) -> bool:
+    """True for a request whose `Origin` is not the host the browser used.
+    Apps behind one MyAuth usually share a host name, and cookies do not
+    separate ports - a form on another app's page would arrive with the
+    MyAuth cookie. The Origin header is what tells them apart; no Origin
+    (same-site navigation, old clients) is not cross-site."""
+    origin = request.headers.get("origin")
+    if not origin:
+        return False
+    proto = request.headers.get("x-forwarded-proto", "https")
+    return origin.rstrip("/") != f"{proto}://{request.headers.get('host', 'localhost')}"
+
+
 def myauth_page(request, path: str = "/") -> str:
     """A MyAuth page on the host the browser used (private name or LAN IP)."""
     return myauth.public_url(current_url(request), path)

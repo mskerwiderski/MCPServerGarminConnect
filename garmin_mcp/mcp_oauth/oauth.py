@@ -22,11 +22,13 @@ share one refresh token, one per access token.
 
 What the host package provides (the contract):
   ..db           conn(), now_ms(); tables oauth_clients and oauth_tokens
-  ..web          public_base(request), mcp_url(request), ui_base(request),
-                 async signed_in(request) -> (user, error response)
+  ..web          async signed_in(request) -> (user, error response)
   ..access       the MyCommons building block `access` (myauth.access_of)
 and, via configure(error_page=...), a function (request, message, status) ->
-Response for errors shown in the browser. The consent page itself
+Response for errors shown in the browser. The addresses (issuer, connector,
+consent page) are the block's own (`mcp_oauth.addresses`, env PUBLIC_URL /
+MCP_URL / UI_URL, or callables via configure(public_url=..., mcp_url=...,
+ui_url=...)); since 1.1.0 the host no longer provides them. The consent page itself
 (`get_authorize`) is the host's: it uses `_parse_authorize` and posts to
 `post_authorize`.
 
@@ -48,6 +50,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse, Response
 
 from .. import web
+from . import addresses
 from ..access import myauth
 from ..db import conn, now_ms
 
@@ -67,11 +70,19 @@ def _plain_error(request: Request, message: str, status: int) -> Response:
 _error_page = _plain_error
 
 
-def configure(error_page=None) -> None:
+_UNSET = addresses._UNSET     # "argument omitted", shared with addresses.configure
+
+
+def configure(error_page=_UNSET, *, public_url=_UNSET, mcp_url=_UNSET, ui_url=_UNSET) -> None:
     """The host's page for errors shown in the browser:
-    error_page(request, message, status) -> Response."""
+    error_page(request, message, status) -> Response (None: plain text).
+    public_url / mcp_url / ui_url: callables for hosts whose settings are not
+    PUBLIC_URL / MCP_URL / UI_URL (see `addresses`). An omitted argument stays
+    as it is."""
     global _error_page
-    _error_page = error_page or _plain_error
+    if error_page is not _UNSET:
+        _error_page = error_page or _plain_error
+    addresses.configure(public_url=public_url, mcp_url=mcp_url, ui_url=ui_url)
 
 
 def _error_html(request: Request, message: str, status: int = 400) -> Response:
@@ -119,19 +130,19 @@ def access_token_user(token: str) -> int | None:
 
 def get_protected_resource_metadata(request: Request) -> Response:
     return JSONResponse({
-        "resource": web.mcp_url(request),
-        "authorization_servers": [web.public_base(request)],
+        "resource": addresses.mcp_url(request),
+        "authorization_servers": [addresses.public_base(request)],
         "scopes_supported": [SCOPE],
         "bearer_methods_supported": ["header"],
     })
 
 
 def get_authorization_server_metadata(request: Request) -> Response:
-    base = web.public_base(request)
+    base = addresses.public_base(request)
     return JSONResponse({
         "issuer": base,
         # a browser page: may live on a private host (UI_URL), not the public one
-        "authorization_endpoint": f"{web.ui_base(request)}/oauth/authorize",
+        "authorization_endpoint": f"{addresses.ui_base(request)}/oauth/authorize",
         "token_endpoint": f"{base}/oauth/token",
         "registration_endpoint": f"{base}/oauth/register",
         "response_types_supported": ["code"],
