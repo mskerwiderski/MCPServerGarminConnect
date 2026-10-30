@@ -1,7 +1,8 @@
 """Garmin Connect client - the MyCommons building block `garmin_api`.
 
-Shared by MyFITContainer (app/garmin_api/) and Garmin MCP
-(garmin_mcp/garmin_api/); never edit a copy, change it in MyCommons and sync.
+Shared by MyFITContainer (app/garmin_api/), Garmin MCP (garmin_mcp/garmin_api/)
+and MyGPXContainer (app/garmin_api/); never edit a copy, change it in MyCommons
+and sync.
 Merged on 2026-10-28 from MyFITContainer's app/garmin_client.py (originally
 ported from MyActivitySync app/sync/garmin.py) and Garmin MCP's copy of it.
 
@@ -12,6 +13,8 @@ Upload: POST /upload-service/upload (multipart, Bearer).
 Rename: PUT /activity-service/activity/{id}.
 Get: GET /activitylist-service/.../activities (list) and
 GET /download-service/files/activity/{id} (ZIP with the original FIT).
+Courses and sending them to devices: course-service, device-service (since
+1.1.0, MyGPXContainer).
 `fit_tool` is imported lazily, only for uploading weight (_build_weight_fit).
 """
 
@@ -166,10 +169,11 @@ class GarminClient:
     raises GarminAuthError when there is no Garmin connection.
     """
 
-    def __init__(self, token_source: Optional[TokenSource] = None) -> None:
+    def __init__(self, token_source: Optional[TokenSource] = None, *,
+                 timeout: float = 30.0) -> None:
         self.oauth2_token: Optional[OAuth2Token] = None
         self._token_source = token_source
-        self._http = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+        self._http = httpx.AsyncClient(timeout=timeout, follow_redirects=True)
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -1592,6 +1596,94 @@ class GarminClient:
             return []
         arr = r.json() or []
         return arr if isinstance(arr, list) else []
+
+    # ---------- courses and devices (endpoints tried live 2026-10-27) ----------
+    # Errors with a status are GarminHttpError: callers tell a foreign private
+    # course (401/403) or "not yet ready" (429, right after saving) apart.
+
+    @staticmethod
+    def _check(r: httpx.Response, what: str, ok=(200,)) -> httpx.Response:
+        if r.status_code not in ok:
+            raise GarminHttpError(f"{what} HTTP {r.status_code}: {r.text[:120]}".strip(),
+                                  r.status_code)
+        return r
+
+    async def list_courses(self) -> list[dict]:
+        """The user's own courses - WITHOUT their description (Garmin answers
+        courseDescription null here); that comes only with get_course."""
+        name = await self.profile_display_id()
+        if not name:
+            raise GarminError("no displayName in the profile")
+        r = await self._http.get(f"{CONNECT_API}/course-service/course/owner/{name}",
+                                 headers=await self._bearer())
+        arr = self._check(r, "list_courses").json() or []
+        return arr if isinstance(arr, list) else []
+
+    async def get_course(self, course_id: int | str) -> dict | None:
+        """A course (own or public) with name, description and activityTypePk;
+        None if it is gone (404)."""
+        r = await self._http.get(f"{CONNECT_API}/course-service/course/{course_id}",
+                                 headers=await self._bearer())
+        if r.status_code == 404:
+            return None
+        self._check(r, "get_course")
+        return (r.json() if r.content else None) or {}
+
+    async def course_gpx(self, course_id: int | str) -> bytes:
+        """The course as a GPX file."""
+        r = await self._http.get(f"{CONNECT_API}/course-service/course/gpx/{course_id}",
+                                 headers=await self._bearer())
+        return self._check(r, "course_gpx").content
+
+    async def import_course(self, data: bytes, filename: str = "route.gpx") -> dict:
+        """Garmin parses a GPX into a course and saves NOTHING (save_course
+        does). Its geoPoints come back without elevation."""
+        r = await self._http.post(f"{CONNECT_API}/course-service/course/import",
+                                  headers=await self._bearer(),
+                                  files={"file": (filename, data, "application/gpx+xml")})
+        return self._check(r, "import_course").json() or {}
+
+    async def save_course(self, course: dict) -> int:
+        """Saves a course (e.g. import_course's answer, completed). Returns the
+        courseId."""
+        r = await self._http.post(f"{CONNECT_API}/course-service/course",
+                                  headers=await self._bearer(content_type=True),
+                                  content=json.dumps(course))
+        course_id = (self._check(r, "save_course", ok=(200, 201)).json() or {}).get("courseId")
+        if not isinstance(course_id, int):
+            raise GarminError("save_course: no courseId in the answer")
+        return course_id
+
+    async def delete_course(self, course_id: int) -> None:
+        """Deletes a course (404 = already gone). Right after it was saved
+        Garmin answers 429 "not yet ready to delete or update" for a moment -
+        GarminHttpError with status 429, the caller decides when to try again."""
+        r = await self._http.delete(f"{CONNECT_API}/course-service/course/{course_id}",
+                                    headers=await self._bearer())
+        self._check(r, "delete_course", ok=(200, 204, 404))
+
+    async def list_devices(self) -> list[dict]:
+        """The user's registered devices (deviceId, productDisplayName,
+        courseCapable, deviceCategories - a bike computer says
+        DEDICATED_BIKE_COMPUTER)."""
+        r = await self._http.get(f"{CONNECT_API}/device-service/deviceregistration/devices",
+                                 headers=await self._bearer())
+        arr = self._check(r, "list_devices").json() or []
+        return arr if isinstance(arr, list) else []
+
+    async def send_course(self, course_id: int, device_id: int, name: str) -> None:
+        """Queues the course for the device, like "Send to device" in Garmin
+        Connect: the device fetches the FIT on its next sync. There is no
+        message that removes a course from a device."""
+        r = await self._http.post(
+            f"{CONNECT_API}/device-service/devicemessage/messages",
+            headers=await self._bearer(content_type=True), content=json.dumps([{
+                "deviceId": device_id,
+                "messageUrl": f"course-service/course/fit/{course_id}/{device_id}?elevation=true",
+                "messageType": "courses", "messageName": name[:255],
+                "groupName": None, "priority": 1, "fileType": "FIT",
+                "metaDataId": course_id}]))
+        self._check(r, "send_course", ok=(200, 201, 204))
 
 
 def _gmt_s(value: str) -> int:
