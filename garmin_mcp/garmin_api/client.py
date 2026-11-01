@@ -1629,6 +1629,36 @@ class GarminClient:
         self._check(r, "get_course")
         return (r.json() if r.content else None) or {}
 
+    async def list_activities(self, start: int = 0, limit: int = 20,
+                              activity_type: str | None = None, start_date: str | None = None,
+                              end_date: str | None = None) -> list[dict]:
+        """The user's activities, newest first, a page at a time (`start`,
+        `limit`); `activity_type` a typeKey (a parent type takes its sub types:
+        "cycling"), dates "YYYY-MM-DD". Each entry has activityId,
+        activityName, startTimeLocal, activityType.typeKey, distance,
+        elevationGain, hasPolyline (False: no GPS - indoor). Tried live
+        2026-11-01 (MyGPXContainer)."""
+        params: dict = {"start": start, "limit": limit}
+        if activity_type:
+            params["activityType"] = activity_type
+        if start_date:
+            params["startDate"] = start_date
+        if end_date:
+            params["endDate"] = end_date
+        r = await self._http.get(f"{CONNECT_API}/activitylist-service/activities/search/activities",
+                                 params=params, headers=await self._bearer())
+        arr = self._check(r, "list_activities").json() or []
+        return arr if isinstance(arr, list) else []
+
+    async def activity_gpx(self, activity_id: int | str) -> bytes:
+        """An activity as Garmin's GPX export: the track with elevation, times
+        and heart rate extensions (download-service/export/gpx/activity, tried
+        live 2026-11-01). 401/403: not the user's and not public."""
+        r = await self._http.get(
+            f"{CONNECT_API}/download-service/export/gpx/activity/{activity_id}",
+            headers=await self._bearer())
+        return self._check(r, "activity_gpx").content
+
     async def course_gpx(self, course_id: int | str) -> bytes:
         """The course as a GPX file."""
         r = await self._http.get(f"{CONNECT_API}/course-service/course/gpx/{course_id}",
