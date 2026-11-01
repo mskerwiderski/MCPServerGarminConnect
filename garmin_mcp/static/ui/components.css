@@ -1,5 +1,5 @@
 /* ============================================================================
-   msk-ui v1.0.0 — base + components (shared by all msk web apps)
+   msk-ui v1.1.0 — base + components (shared by all msk web apps)
    Load order in every app: ui/tokens.css → ui/components.css → app.css
    Derived from the MyFITContainer design system; every colour is a token
    (tokens.css), so light and dark both work. App-specific styles belong in
@@ -125,6 +125,13 @@ legend { font-size:.82rem; color:var(--muted); font-weight:500; padding:0 .3rem;
 .hint-inline { display:block; margin-top:.3rem; font-size:.78rem; color:var(--faint); font-weight:400; }
 .form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(11rem,1fr)); gap:.7rem 1rem;
              align-items:end; }
+/* suggestions while typing (autocomplete.js) */
+.ac { display:block; position:relative; }
+.ac-list { position:absolute; z-index:30; left:0; right:0; top:calc(100% + 2px); margin:0;
+           padding:.25rem 0; list-style:none; background:var(--surface); border:1px solid var(--line);
+           border-radius:var(--r-sm); box-shadow:var(--shadow-md); max-height:16rem; overflow-y:auto; }
+.ac-list li { padding:.45rem .75rem; cursor:pointer; font-size:.92rem; font-weight:400; color:var(--fg); }
+.ac-list li:hover, .ac-list li.active { background:var(--accent-weak); color:var(--accent); }
 
 /* ---------- buttons ---------- */
 button, .btn, .btn-ghost, .btn-danger, .pager a {

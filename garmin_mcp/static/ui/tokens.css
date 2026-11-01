@@ -1,5 +1,5 @@
 /* ============================================================================
-   msk-ui v1.0.0 — design tokens (shared by all msk web apps)
+   msk-ui v1.1.0 — design tokens (shared by all msk web apps)
    Source of truth: claude-toolkit/plugins/msk-web/skills/msk-ui/assets/
    Apps get a COPY in app/static/ui/ (scripts/sync.sh). Never edit the copy.
 

@@ -1,4 +1,4 @@
-/* msk-ui v1.0.0 — shell behaviour: the mobile "More" bottom sheet.
+/* msk-ui v1.1.0 — shell behaviour: the mobile "More" bottom sheet.
    Markup: button#more-btn in .tabbar-bottom, div#more-sheet.sheet, div#more-backdrop.
    Source of truth: claude-toolkit/plugins/msk-web/skills/msk-ui/assets/ — never edit the copy. */
 (function () {
