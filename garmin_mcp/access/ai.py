@@ -11,7 +11,10 @@ key (`MYAUTH_APP_KEY`, see `myauth.app_secret`) where needed:
 - `POST /api/internal/ai/run` (bearer = app key, Docker network only),
   multipart: `app`, `uid` (the MyAuth user the run is for), `provider`,
   `model` (the exact listed id), `task`, `prompt`, `reason`, optional
-  `json_schema` and `timeout_s` (MyAuth's default is 300 s), files as
+  `json_schema`, `timeout_s` (MyAuth's default is 300 s) and `system`
+  (MyAuth 0.64+: the fixed part of the prompt - instructions, vocabulary -
+  sent first and marked for the provider's prompt cache, so runs in a row
+  read it from the cache; `prompt` and the files are what changes), files as
   `files`. 200 answers the provider's result (`result`,
   `structured_output`, `usage`, `is_error`, `provider`, `model`, ...); else
   `{"detail": <code>, "message": ...}` with 400 (`model_not_available`,
@@ -200,10 +203,12 @@ async def _post_run(data: dict, files: list[tuple[str, bytes]], timeout: float) 
 async def run(prompt: str, *, uid: int, provider: str, model: str, task: str,
               reason: str = "", json_schema: str | dict | None = None,
               files: list[tuple[str, bytes]] | tuple = (), timeout_s: int | None = None,
-              fallback=None) -> dict:
+              fallback=None, system: str | None = None) -> dict:
     """One run in MyAuth for user `uid`; returns the provider's answer (see
     the module docstring). `reason` and `task` show up in MyAuth's AI call
-    statistics; `timeout_s` asks for another limit than MyAuth's 300 s.
+    statistics; `timeout_s` asks for another limit than MyAuth's 300 s;
+    `system` is the fixed, cacheable part of the prompt (keep it identical
+    from run to run - any change, even an order, misses the cache).
     `fallback(provider, model)` (plain or async) is asked once when a paid
     provider answers 402/503 and may return (ABO, model) or None."""
     data = {"app": myauth.app_key(), "uid": str(uid), "provider": provider,
@@ -213,6 +218,8 @@ async def run(prompt: str, *, uid: int, provider: str, model: str, task: str,
         data["json_schema"] = json_schema if isinstance(json_schema, str) else json.dumps(json_schema)
     if timeout_s is not None:
         data["timeout_s"] = str(timeout_s)
+    if system:
+        data["system"] = system
     timeout = (timeout_s or DEFAULT_TIMEOUT_S) + RUN_GRACE_S
     files = list(files)
     status, body = await _post_run(data, files, timeout)
